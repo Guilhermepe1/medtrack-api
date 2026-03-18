@@ -7,7 +7,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core.config import settings
 
-from routers import auth, exames, dashboard, chat, alertas, perfil, compartilhar
+from routers import (
+    auth,
+    exames,
+    dashboard,
+    chat,
+    alertas,
+    perfil,
+    compartilhar,
+    valores,
+    usuarios,
+    odonto,
+    lgpd,
+)
 
 app = FastAPI(
     title="MedTrack Health AI API",
@@ -17,7 +29,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ── CORS — permite o Next.js consumir a API ──
+# ── CORS ──
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -32,19 +44,23 @@ app.add_middleware(
 
 # ── Routers ──
 app.include_router(auth.router)
+app.include_router(usuarios.router)
 app.include_router(exames.router)
+app.include_router(valores.router)
 app.include_router(dashboard.router)
 app.include_router(chat.router)
 app.include_router(alertas.router)
 app.include_router(perfil.router)
 app.include_router(compartilhar.router)
+app.include_router(odonto.router)
+app.include_router(lgpd.router)
 
 
 @app.get("/", tags=["Health Check"])
 def health_check():
     return {
-        "status": "ok",
-        "app": "MedTrack Health AI API",
+        "status":  "ok",
+        "app":     "MedTrack Health AI API",
         "version": "1.0.0",
-        "docs": "/docs",
+        "docs":    "/docs",
     }
