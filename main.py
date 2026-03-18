@@ -30,17 +30,44 @@ app = FastAPI(
 )
 
 # ── CORS ──
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:3000",
-        "https://medtrack-health-ai.vercel.app",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+import re
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
+
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8501",
+    settings.FRONTEND_URL,
+]
+
+ALLOWED_PATTERNS = [
+    re.compile(r"https://medtrack.*\.vercel\.app$"),
+]
+
+
+def origin_permitida(origin: str) -> bool:
+    if origin in ALLOWED_ORIGINS:
+        return True
+    return any(p.match(origin) for p in ALLOWED_PATTERNS)
+
+
+class DynamicCORS(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        origin = request.headers.get("origin", "")
+        if request.method == "OPTIONS":
+            response = StarletteResponse()
+        else:
+            response = await call_next(request)
+        if origin_permitida(origin):
+            response.headers["Access-Control-Allow-Origin"]      = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"]     = "*"
+            response.headers["Access-Control-Allow-Headers"]     = "*"
+        return response
+
+
+app.add_middleware(DynamicCORS)
 
 # ── Routers ──
 app.include_router(auth.router)
