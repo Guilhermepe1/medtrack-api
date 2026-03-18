@@ -1,0 +1,46 @@
+# Ambiente virtual
+venv/
+.venv/
+env/
+ENV/
+
+# Modelos de IA (sentence-transformers baixa aqui — podem chegar a 1GB+)
+.cache/
+models/
+huggingface/
+sentence_transformers/
+__pycache__/
+*.pyc
+*.pyo
+
+# Variáveis de ambiente
+.env
+
+# Uploads temporários
+uploads/
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# Banco local
+*.db
+*.sqlite
+
+# IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Distribuição Python
+*.egg-info/
+dist/
+build/
