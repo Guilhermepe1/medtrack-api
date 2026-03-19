@@ -2,9 +2,10 @@
 Router de exames médicos.
 """
 
+import os
+import tempfile
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from typing import Optional, List
-from datetime import date
 
 from core.security import get_usuario_atual
 from core.database import get_connection, get_cursor
@@ -34,30 +35,25 @@ def listar_exames(usuario_id: int = Depends(get_usuario_atual)):
 
 @router.post("/upload/debug")
 async def upload_debug(request: Request):
-    """Endpoint temporário para debugar o 422."""
-    form = await request.form()
+    """Endpoint temporário para debugar o upload."""
+    form    = await request.form()
     headers = dict(request.headers)
     return {
-        "form_keys": list(form.keys()),
+        "form_keys":    list(form.keys()),
         "content_type": headers.get("content-type", ""),
-        "auth": headers.get("authorization", "")[:30],
+        "auth":         headers.get("authorization", "")[:30],
     }
 
 
 @router.post("/upload")
 async def upload_exame(
     usuario_id: int = Depends(get_usuario_atual),
-    arquivo: UploadFile = File(...),
+    arquivo:    UploadFile = File(...),
     nome_exame: Optional[str] = Form(None),
     data_exame: Optional[str] = Form(None),
-    medico: Optional[str] = Form(None),
-    hospital: Optional[str] = Form(None),
+    medico:     Optional[str] = Form(None),
+    hospital:   Optional[str] = Form(None),
 ):
-    """
-    Recebe o arquivo, extrai texto, gera resumo via IA,
-    salva no banco e indexa no pgvector.
-    """
-    import os, tempfile
     from services.ai_service import resumir_exame
     from services.extracao_service import extrair_metadados_e_valores
     from services.exame_classifier import classificar_exame
@@ -68,7 +64,7 @@ async def upload_exame(
 
     conteudo = await arquivo.read()
 
-    # extrai texto via OCR/PDF
+    # ── Extrai texto ──
     ext = os.path.splitext(arquivo.filename)[1].lower()
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(conteudo)
@@ -84,9 +80,10 @@ async def upload_exame(
     except Exception as e:
         texto = f"Erro ao extrair texto: {e}"
     finally:
-        os.unlink(tmp_path)
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
-    # processa com IA
+    # ── Processa com IA ──
     try:
         resumo = resumir_exame(texto)
     except Exception:
@@ -104,16 +101,18 @@ async def upload_exame(
         resultado = {}
         valores   = []
 
-    nome_final  = nome_exame or resultado.get("nome_exame")
-    data_final  = data_exame or resultado.get("data_exame")
-    med_final   = medico     or resultado.get("medico")
-    hosp_final  = hospital   or resultado.get("hospital")
+    nome_final = nome_exame or resultado.get("nome_exame")
+    data_final = data_exame or resultado.get("data_exame")
+    med_final  = medico     or resultado.get("medico")
+    hosp_final = hospital   or resultado.get("hospital")
 
+    # ── Storage ──
     try:
         storage_path = upload_arquivo(usuario_id, arquivo.filename, conteudo)
     except Exception:
         storage_path = None
 
+    # ── Salva no banco ──
     conn   = get_connection()
     cursor = get_cursor(conn)
 
@@ -131,7 +130,7 @@ async def upload_exame(
     exame_id = cursor.fetchone()["id"]
     conn.commit()
 
-    # salva valores e alertas
+    # ── Valores e alertas ──
     if valores:
         try:
             salvar_valores(exame_id, usuario_id, data_final, valores)
@@ -139,7 +138,7 @@ async def upload_exame(
         except Exception:
             pass
 
-    # indexa embedding em background (não bloqueia a resposta)
+    # ── Embedding (não bloqueia se falhar) ──
     try:
         from services.embedding_service import gerar_embedding
         embedding = gerar_embedding(texto)
@@ -147,22 +146,24 @@ async def upload_exame(
             INSERT INTO exame_embeddings (exame_id, usuario_id, embedding)
             VALUES (%s, %s, %s)
         """, (exame_id, usuario_id, embedding.tolist()))
+        conn.commit()
+    except Exception:
+        pass
 
-    conn.commit()
     conn.close()
 
     return {
-        "exame_id":  exame_id,
+        "exame_id":   exame_id,
         "nome_exame": nome_final or arquivo.filename,
         "categoria":  categoria,
         "resumo":     resumo,
-        "alertas":    len([v for v in valores if v.get("status") in ("alto","baixo")])
+        "alertas":    len([v for v in valores if v.get("status") in ("alto", "baixo")])
     }
 
 
 @router.delete("/{exame_id}")
 def excluir_exame(
-    exame_id: int,
+    exame_id:   int,
     usuario_id: int = Depends(get_usuario_atual)
 ):
     conn   = get_connection()
@@ -185,7 +186,7 @@ def excluir_exame(
 
 @router.get("/{exame_id}", response_model=ExameResponse)
 def buscar_exame(
-    exame_id: int,
+    exame_id:   int,
     usuario_id: int = Depends(get_usuario_atual)
 ):
     conn   = get_connection()
