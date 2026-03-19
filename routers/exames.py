@@ -2,7 +2,7 @@
 Router de exames médicos.
 """
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
 from typing import Optional, List
 from datetime import date
 
@@ -30,6 +30,18 @@ def listar_exames(usuario_id: int = Depends(get_usuario_atual)):
     conn.close()
 
     return [dict(row) for row in rows]
+
+
+@router.post("/upload/debug")
+async def upload_debug(request: Request):
+    """Endpoint temporário para debugar o 422."""
+    form = await request.form()
+    headers = dict(request.headers)
+    return {
+        "form_keys": list(form.keys()),
+        "content_type": headers.get("content-type", ""),
+        "auth": headers.get("authorization", "")[:30],
+    }
 
 
 @router.post("/upload")
