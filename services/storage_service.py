@@ -2,12 +2,12 @@
 Service responsável pelo armazenamento de arquivos no Supabase Storage.
 """
 
-import streamlit as st
 import requests
+from core.config import settings
 
 
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_KEY = st.secrets["SUPABASE_SERVICE_KEY"]
+SUPABASE_URL = settings.SUPABASE_URL
+SUPABASE_KEY = settings.SUPABASE_SERVICE_KEY
 BUCKET = "exames"
 
 HEADERS = {

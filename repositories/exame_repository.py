@@ -4,7 +4,7 @@ relacionadas à entidade Exame.
 """
 
 import os
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 from models.exame import Exame
 
 UPLOAD_FOLDER = "uploads"

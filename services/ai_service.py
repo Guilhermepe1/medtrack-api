@@ -3,12 +3,12 @@ Service responsável por interagir com o modelo de IA.
 """
 
 import os
-import streamlit as st
 from groq import Groq
+from core.config import settings
 
 
 def _get_groq_client():
-    api_key = st.secrets.get("GROQ_API_KEY") or os.getenv("GROQ_API_KEY")
+    api_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY")
     return Groq(api_key=api_key)
 
 

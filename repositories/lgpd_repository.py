@@ -3,7 +3,7 @@ Repository responsável pela conformidade LGPD:
 consentimentos, logs de acesso e direito ao esquecimento.
 """
 
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 
 VERSAO_ATUAL = "1.0"
 

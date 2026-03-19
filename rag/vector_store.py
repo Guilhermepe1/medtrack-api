@@ -1,5 +1,5 @@
 import numpy as np
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 from services.embedding_service import gerar_embedding
 
 

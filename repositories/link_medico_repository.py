@@ -4,7 +4,7 @@ Repository para links temporários de compartilhamento com médico.
 
 import secrets
 from datetime import datetime, timedelta
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 
 
 def gerar_token():

@@ -2,7 +2,7 @@
 Repository para registros odontológicos e odontograma.
 """
 
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 
 
 def salvar_registro_odonto(usuario_id, dados, storage_path=None):

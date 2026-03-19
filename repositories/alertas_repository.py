@@ -2,7 +2,7 @@
 Repository responsável pelos alertas clínicos.
 """
 
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 
 
 def salvar_alertas(usuario_id, exame_id, valores):

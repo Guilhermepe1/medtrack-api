@@ -1,4 +1,4 @@
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 
 
 def buscar_usuario_por_username(username):

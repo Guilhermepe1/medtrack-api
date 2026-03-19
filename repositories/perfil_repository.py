@@ -2,7 +2,7 @@
 Repository responsável pelo perfil de saúde do usuário.
 """
 
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 
 
 def buscar_perfil(usuario_id):

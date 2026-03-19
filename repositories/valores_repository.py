@@ -2,7 +2,7 @@
 Repository responsável pelos valores estruturados extraídos dos exames.
 """
 
-from database.db import get_connection, get_cursor
+from core.database import get_connection, get_cursor
 
 
 def salvar_valores(exame_id, usuario_id, data_coleta, valores):

@@ -2,7 +2,6 @@
 Service responsável pelo fluxo de processamento de exames.
 """
 
-import streamlit as st
 
 from services.ai_service import resumir_exame
 from services.extracao_service import extrair_metadados_e_valores
@@ -43,7 +42,7 @@ def processar_exame(arquivo, usuario_id,
     storage_path = upload_arquivo(usuario_id, arquivo.name, conteudo)
 
     if not storage_path:
-        st.error("Erro ao salvar arquivo no storage. Tente novamente.")
+        print("Erro ao salvar arquivo no storage. Tente novamente.")
         return None, texto, resumo, categoria
 
     # salva metadados no banco

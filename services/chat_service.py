@@ -3,7 +3,6 @@ Service responsável pelo chat de saúde baseado no histórico de exames.
 Inclui contexto médico, odontológico e perfil do usuário.
 """
 
-import streamlit as st
 
 from services.ai_service import client
 from services.odonto_service import resumir_para_chat
