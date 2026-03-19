@@ -4,7 +4,7 @@ Router de exames médicos.
 
 import os
 import tempfile
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Request, Header
 from typing import Optional, List
 
 from core.security import get_usuario_atual
@@ -47,13 +47,23 @@ async def upload_debug(request: Request):
 
 @router.post("/upload")
 async def upload_exame(
-    usuario_id: int = Depends(get_usuario_atual),
     arquivo:    UploadFile = File(...),
     nome_exame: Optional[str] = Form(None),
     data_exame: Optional[str] = Form(None),
     medico:     Optional[str] = Form(None),
     hospital:   Optional[str] = Form(None),
+    token:      Optional[str] = Form(None),
+    authorization: Optional[str] = Header(None),
 ):
+    # extrai usuario_id do token JWT manualmente
+    from core.security import decodificar_token
+    from fastapi import HTTPException
+
+    raw_token = token or (authorization.split(" ")[1] if authorization and " " in authorization else None)
+    if not raw_token:
+        raise HTTPException(status_code=401, detail="Token não fornecido.")
+    payload    = decodificar_token(raw_token)
+    usuario_id = int(payload.get("sub"))
     from services.ai_service import resumir_exame
     from services.extracao_service import extrair_metadados_e_valores
     from services.exame_classifier import classificar_exame
