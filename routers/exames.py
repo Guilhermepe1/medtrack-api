@@ -34,12 +34,12 @@ def listar_exames(usuario_id: int = Depends(get_usuario_atual)):
 
 @router.post("/upload")
 async def upload_exame(
+    usuario_id: int = Depends(get_usuario_atual),
     arquivo: UploadFile = File(...),
     nome_exame: Optional[str] = Form(None),
     data_exame: Optional[str] = Form(None),
     medico: Optional[str] = Form(None),
     hospital: Optional[str] = Form(None),
-    usuario_id: int = Depends(get_usuario_atual)
 ):
     """
     Recebe o arquivo, extrai texto, gera resumo via IA,
