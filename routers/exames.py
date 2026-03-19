@@ -46,24 +46,30 @@ async def upload_debug(request: Request):
 
 
 @router.post("/upload")
-async def upload_exame(
-    arquivo:    UploadFile = File(...),
-    nome_exame: Optional[str] = Form(None),
-    data_exame: Optional[str] = Form(None),
-    medico:     Optional[str] = Form(None),
-    hospital:   Optional[str] = Form(None),
-    token:      Optional[str] = Form(None),
-    authorization: Optional[str] = Header(None),
-):
-    # extrai usuario_id do token JWT manualmente
+async def upload_exame(request: Request):
     from core.security import decodificar_token
     from fastapi import HTTPException
 
-    raw_token = token or (authorization.split(" ")[1] if authorization and " " in authorization else None)
-    if not raw_token:
+    # extrai token do header Authorization
+    auth = request.headers.get("authorization", "")
+    if not auth or " " not in auth:
         raise HTTPException(status_code=401, detail="Token não fornecido.")
+    raw_token  = auth.split(" ")[1]
     payload    = decodificar_token(raw_token)
     usuario_id = int(payload.get("sub"))
+
+    # lê o form manualmente
+    form       = await request.form()
+    arquivo    = form.get("arquivo")
+    nome_exame = form.get("nome_exame")
+    data_exame = form.get("data_exame")
+    medico     = form.get("medico")
+    hospital   = form.get("hospital")
+
+    if not arquivo:
+        raise HTTPException(status_code=422, detail="Arquivo não enviado.")
+
+    conteudo = await arquivo.read()
     from services.ai_service import resumir_exame
     from services.extracao_service import extrair_metadados_e_valores
     from services.exame_classifier import classificar_exame
@@ -71,8 +77,6 @@ async def upload_exame(
     from repositories.valores_repository import salvar_valores
     from repositories.alertas_repository import salvar_alertas
     from services.document_reader import extrair_texto_documento
-
-    conteudo = await arquivo.read()
 
     # ── Extrai texto ──
     ext = os.path.splitext(arquivo.filename)[1].lower()
