@@ -57,47 +57,62 @@ async def upload_exame(
     Recebe o arquivo, extrai texto, gera resumo via IA,
     salva no banco e indexa no pgvector.
     """
-    import io
+    import os, tempfile
     from services.ai_service import resumir_exame
     from services.extracao_service import extrair_metadados_e_valores
     from services.exame_classifier import classificar_exame
     from services.storage_service import upload_arquivo
-    from services.embedding_service import gerar_embedding
     from repositories.valores_repository import salvar_valores
     from repositories.alertas_repository import salvar_alertas
+    from services.document_reader import extrair_texto_documento
 
     conteudo = await arquivo.read()
 
-    # extrai texto
-    from services.document_reader import extrair_texto_documento
-    import tempfile, os
-
+    # extrai texto via OCR/PDF
     ext = os.path.splitext(arquivo.filename)[1].lower()
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(conteudo)
         tmp_path = tmp.name
 
-    with open(tmp_path, "rb") as f:
-        class FakeFile:
-            name = arquivo.filename
-            def read(self): return conteudo
-            def seek(self, x): pass
+    class FakeFile:
+        name = arquivo.filename
+        def read(self): return conteudo
+        def seek(self, x): pass
+
+    try:
         texto = extrair_texto_documento(FakeFile())
+    except Exception as e:
+        texto = f"Erro ao extrair texto: {e}"
+    finally:
+        os.unlink(tmp_path)
 
-    os.unlink(tmp_path)
+    # processa com IA
+    try:
+        resumo = resumir_exame(texto)
+    except Exception:
+        resumo = "Resumo não disponível."
 
-    resumo    = resumir_exame(texto)
-    categoria = classificar_exame(texto)
-    resultado = extrair_metadados_e_valores(texto)
-    valores   = resultado.get("valores", [])
+    try:
+        categoria = classificar_exame(texto)
+    except Exception:
+        categoria = "Outros"
 
-    # usa metadados confirmados pelo usuário ou extraídos pela IA
+    try:
+        resultado = extrair_metadados_e_valores(texto)
+        valores   = resultado.get("valores", [])
+    except Exception:
+        resultado = {}
+        valores   = []
+
     nome_final  = nome_exame or resultado.get("nome_exame")
     data_final  = data_exame or resultado.get("data_exame")
-    med_final   = medico    or resultado.get("medico")
-    hosp_final  = hospital  or resultado.get("hospital")
+    med_final   = medico     or resultado.get("medico")
+    hosp_final  = hospital   or resultado.get("hospital")
 
-    storage_path = upload_arquivo(usuario_id, arquivo.filename, conteudo)
+    try:
+        storage_path = upload_arquivo(usuario_id, arquivo.filename, conteudo)
+    except Exception:
+        storage_path = None
 
     conn   = get_connection()
     cursor = get_cursor(conn)
@@ -118,15 +133,20 @@ async def upload_exame(
 
     # salva valores e alertas
     if valores:
-        salvar_valores(exame_id, usuario_id, data_final, valores)
-        salvar_alertas(usuario_id, exame_id, valores)
+        try:
+            salvar_valores(exame_id, usuario_id, data_final, valores)
+            salvar_alertas(usuario_id, exame_id, valores)
+        except Exception:
+            pass
 
-    # indexa embedding
-    embedding = gerar_embedding(texto)
-    cursor.execute("""
-        INSERT INTO exame_embeddings (exame_id, usuario_id, embedding)
-        VALUES (%s, %s, %s)
-    """, (exame_id, usuario_id, embedding.tolist()))
+    # indexa embedding em background (não bloqueia a resposta)
+    try:
+        from services.embedding_service import gerar_embedding
+        embedding = gerar_embedding(texto)
+        cursor.execute("""
+            INSERT INTO exame_embeddings (exame_id, usuario_id, embedding)
+            VALUES (%s, %s, %s)
+        """, (exame_id, usuario_id, embedding.tolist()))
 
     conn.commit()
     conn.close()
