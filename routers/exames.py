@@ -46,30 +46,11 @@ async def upload_debug(request: Request):
 
 
 @router.post("/upload")
-async def upload_exame(request: Request):
-    from core.security import decodificar_token
-    from fastapi import HTTPException
-
-    # extrai token do header Authorization
-    auth = request.headers.get("authorization", "")
-    if not auth or " " not in auth:
-        raise HTTPException(status_code=401, detail="Token não fornecido.")
-    raw_token  = auth.split(" ")[1]
-    payload    = decodificar_token(raw_token)
-    usuario_id = int(payload.get("sub"))
-
-    # lê o form manualmente
-    form       = await request.form()
-    arquivo    = form.get("arquivo")
-    nome_exame = form.get("nome_exame")
-    data_exame = form.get("data_exame")
-    medico     = form.get("medico")
-    hospital   = form.get("hospital")
-
-    if not arquivo:
-        raise HTTPException(status_code=422, detail="Arquivo não enviado.")
-
-    conteudo = await arquivo.read()
+async def upload_exame(
+    payload:    dict,
+    usuario_id: int = Depends(get_usuario_atual),
+):
+    import base64, os, tempfile
     from services.ai_service import resumir_exame
     from services.extracao_service import extrair_metadados_e_valores
     from services.exame_classifier import classificar_exame
@@ -78,14 +59,27 @@ async def upload_exame(request: Request):
     from repositories.alertas_repository import salvar_alertas
     from services.document_reader import extrair_texto_documento
 
-    # ── Extrai texto ──
-    ext = os.path.splitext(arquivo.filename)[1].lower()
+    arquivo_nome = payload.get("arquivo_nome", "exame.pdf")
+    arquivo_b64  = payload.get("arquivo_b64", "")
+    nome_exame   = payload.get("nome_exame")
+    data_exame   = payload.get("data_exame")
+    medico       = payload.get("medico")
+    hospital     = payload.get("hospital")
+
+    # decodifica base64
+    try:
+        conteudo = base64.b64decode(arquivo_b64)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Erro ao decodificar arquivo: {e}")
+
+    # extrai texto
+    ext = os.path.splitext(arquivo_nome)[1].lower() or ".pdf"
     with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
         tmp.write(conteudo)
         tmp_path = tmp.name
 
     class FakeFile:
-        name = arquivo.filename
+        name = arquivo_nome
         def read(self): return conteudo
         def seek(self, x): pass
 
@@ -97,7 +91,6 @@ async def upload_exame(request: Request):
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-    # ── Processa com IA ──
     try:
         resumo = resumir_exame(texto)
     except Exception:
@@ -120,13 +113,11 @@ async def upload_exame(request: Request):
     med_final  = medico     or resultado.get("medico")
     hosp_final = hospital   or resultado.get("hospital")
 
-    # ── Storage ──
     try:
-        storage_path = upload_arquivo(usuario_id, arquivo.filename, conteudo)
+        storage_path = upload_arquivo(usuario_id, arquivo_nome, conteudo)
     except Exception:
         storage_path = None
 
-    # ── Salva no banco ──
     conn   = get_connection()
     cursor = get_cursor(conn)
 
@@ -137,14 +128,13 @@ async def upload_exame(request: Request):
         ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         RETURNING id
     """, (
-        usuario_id, arquivo.filename, texto, resumo, categoria,
+        usuario_id, arquivo_nome, texto, resumo, categoria,
         storage_path, nome_final, data_final, med_final, hosp_final
     ))
 
     exame_id = cursor.fetchone()["id"]
     conn.commit()
 
-    # ── Valores e alertas ──
     if valores:
         try:
             salvar_valores(exame_id, usuario_id, data_final, valores)
@@ -152,7 +142,6 @@ async def upload_exame(request: Request):
         except Exception:
             pass
 
-    # ── Embedding (não bloqueia se falhar) ──
     try:
         from services.embedding_service import gerar_embedding
         embedding = gerar_embedding(texto)
@@ -168,12 +157,11 @@ async def upload_exame(request: Request):
 
     return {
         "exame_id":   exame_id,
-        "nome_exame": nome_final or arquivo.filename,
+        "nome_exame": nome_final or arquivo_nome,
         "categoria":  categoria,
         "resumo":     resumo,
         "alertas":    len([v for v in valores if v.get("status") in ("alto", "baixo")])
     }
-
 
 @router.delete("/{exame_id}")
 def excluir_exame(
