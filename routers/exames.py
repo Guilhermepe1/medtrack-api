@@ -142,18 +142,34 @@ async def upload_exame(
         except Exception:
             pass
 
-    try:
-        from services.embedding_service import gerar_embedding
-        embedding = gerar_embedding(texto)
-        cursor.execute("""
-            INSERT INTO exame_embeddings (exame_id, usuario_id, embedding)
-            VALUES (%s, %s, %s)
-        """, (exame_id, usuario_id, embedding.tolist()))
-        conn.commit()
-    except Exception:
-        pass
-
     conn.close()
+
+    # retorna imediatamente — embedding é gerado em background
+    import threading
+
+    def gerar_embedding_background(exame_id, usuario_id, texto):
+        try:
+            from services.embedding_service import gerar_embedding
+            from core.database import get_connection, get_cursor
+            embedding = gerar_embedding(texto)
+            conn2   = get_connection()
+            cursor2 = get_cursor(conn2)
+            cursor2.execute("""
+                INSERT INTO exame_embeddings (exame_id, usuario_id, embedding)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (exame_id) DO UPDATE SET embedding = EXCLUDED.embedding
+            """, (exame_id, usuario_id, embedding.tolist()))
+            conn2.commit()
+            conn2.close()
+        except Exception:
+            pass
+
+    thread = threading.Thread(
+        target=gerar_embedding_background,
+        args=(exame_id, usuario_id, texto),
+        daemon=True
+    )
+    thread.start()
 
     return {
         "exame_id":   exame_id,
